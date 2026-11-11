@@ -22,6 +22,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/records/{type}', [ManagementApiController::class, 'records']);
         Route::post('/records/{type}/{id}', [ManagementApiController::class, 'changeRecord'])->whereNumber('id');
     });
+    Route::post('/staff', [\App\Http\Controllers\Api\StaffApiController::class, 'store'])
+        ->middleware(['admin', 'throttle:10,1']);
     // Account
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);

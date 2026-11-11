@@ -166,4 +166,31 @@ class MobileCompletionTest extends \Illuminate\Foundation\Testing\TestCase
         $this->assertTrue($old->fresh()->trashed());
     }
 
+
+    public function test_admin_can_create_only_staff_and_password_is_not_exposed(): void
+    {
+        $this->signIn('admin');
+        $payload = ['name' => 'New Staff', 'email' => 'NEWSTAFF@example.test',
+            'password' => 'Unique-test-password', 'password_confirmation' => 'Unique-test-password', 'role' => 'admin'];
+        $response = $this->postJson('/api/staff', $payload)->assertCreated()
+            ->assertJsonPath('data.role', 'staff')->assertJsonMissingPath('data.password');
+        $staff = User::findOrFail($response->json('data.id'));
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check($payload['password'], $staff->password));
+        $this->assertStringNotContainsString($payload['password'], ActivityLog::latest('id')->first()->toJson());
+        $this->postJson('/api/staff', $payload)->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public function test_staff_cannot_create_accounts(): void
+    {
+        $this->signIn('staff');
+        $this->postJson('/api/staff', [])->assertForbidden();
+    }
+
+    public function test_staff_creation_requires_confirmation_and_strong_length(): void
+    {
+        $this->signIn('admin');
+        $this->postJson('/api/staff', ['name' => 'Staff', 'email' => 'staff@example.test',
+            'password' => 'short', 'password_confirmation' => 'other'])
+            ->assertUnprocessable()->assertJsonValidationErrors('password');
+    }
 }
