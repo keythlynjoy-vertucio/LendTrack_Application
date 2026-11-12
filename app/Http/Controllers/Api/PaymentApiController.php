@@ -34,7 +34,7 @@ class PaymentApiController extends Controller
             'amount' => [
                 'required',
                 'numeric',
-                'min:0.01',
+                'min:0',
                 'max:9999999999.99',
                 'regex:/^[0-9]+(?:\.[0-9]{1,2})?$/',
             ],
@@ -48,6 +48,7 @@ class PaymentApiController extends Controller
             'paid_at' => [
                 'required',
                 'date_format:Y-m-d',
+                'before_or_equal:today',
             ],
             'method' => [
                 'required',
@@ -134,7 +135,7 @@ class PaymentApiController extends Controller
 
                 $status = strtolower(trim((string) $lockedLoan->status));
 
-                if (! in_array($status, ['active', 'overdue'], true)) {
+                if (! in_array($status, ['active', 'overdue', 'paid'], true)) {
                     throw ValidationException::withMessages([
                         'loan_id' => [
                             'Payments can only be recorded for active or overdue loans.',
@@ -154,12 +155,13 @@ class PaymentApiController extends Controller
                 $balanceCents = max(0, $payableCents - $paidCents);
                 $amountCents = (int) round((float) $data['amount'] * 100);
 
-                if ($balanceCents === 0) {
-                    throw ValidationException::withMessages([
-                        'amount' => [
-                            'This loan has no remaining regular balance.',
-                        ],
-                    ]);
+                $quote = (new \App\Services\CalendarLoanService())->quote($lockedLoan, $data['paid_at']);
+                $penaltyCents = (int) round((float) $data['penalty_paid'] * 100);
+                if ($amountCents + $penaltyCents <= 0) {
+                    throw ValidationException::withMessages(['amount' => 'Enter a regular or penalty payment greater than zero.']);
+                }
+                if ($lockedLoan->interest_months && $penaltyCents > (int) round($quote['penalty_outstanding'] * 100)) {
+                    throw ValidationException::withMessages(['penalty_paid' => 'Penalty exceeds the unpaid penalty for the selected date. Refresh the suggested amounts.']);
                 }
 
                 if ($amountCents > $balanceCents) {
@@ -183,6 +185,16 @@ class PaymentApiController extends Controller
                 // Ensure totals include the newly saved payment.
                 $lockedLoan->unsetRelation('payments');
                 $metrics->syncLoanTotals($lockedLoan);
+
+                $after = (new \App\Services\CalendarLoanService())->quote($lockedLoan, $data['paid_at']);
+                $payment->receipt_snapshot = [
+                    'regular_balance' => $after['regular_outstanding'],
+                    'penalty_balance' => $after['penalty_outstanding'],
+                    'borrower' => $lockedLoan->borrower?->full_name,
+                    'received_by' => User::find($data['user_id'])?->name,
+                    'loan_reference' => $lockedLoan->reference_no,
+                ];
+                $payment->save();
 
                 ActivityLog::create([
                     'user_id' => $data['user_id'],

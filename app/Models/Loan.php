@@ -17,7 +17,7 @@ class Loan extends Model
         'reference_no',
         'principal_amount',
         'interest_rate',
-        'term_months',
+        'term_months', 'interest_months', 'schedule_dates',
         'frequency',
         'start_date',
         'first_due_date',
@@ -35,6 +35,7 @@ class Loan extends Model
     ];
 
     protected $casts = [
+        'interest_months' => 'integer', 'schedule_dates' => 'array',
         'principal_amount' => 'decimal:2',
         'interest_rate' => 'decimal:2',
         'penalty_per_missed_due' => 'decimal:2',

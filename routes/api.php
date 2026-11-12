@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'show',
     ]);
 
+    Route::get('/loans/{loan}/payment-quote', \App\Http\Controllers\Api\PaymentQuoteController::class);
     // Payments
     Route::get('/loans/{loan}/payments', [
         LoanApiController::class,

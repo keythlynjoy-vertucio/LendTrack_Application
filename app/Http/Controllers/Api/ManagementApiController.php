@@ -158,9 +158,13 @@ class ManagementApiController extends Controller
         abort_unless($request->user()?->hasPermission('view_payments'), 403);
         $payment->load(['loan.borrower', 'user:id,name']);
         return response()->json([
-            'id' => $payment->id, 'loan_reference' => $payment->loan?->reference_no,
-            'borrower' => $payment->loan?->borrower?->full_name,
-            'received_by' => $payment->user?->name, 'date' => $payment->paid_at?->toDateString(),
+            'receipt_number' => 'LT-PAY-'.str_pad((string) $payment->id, 8, '0', STR_PAD_LEFT),
+            'recorded_at' => $payment->created_at?->copy()->timezone('Asia/Manila')->format('Y-m-d h:i:s A').' PHT',
+            'regular_balance' => $payment->receipt_snapshot['regular_balance'] ?? null,
+            'penalty_balance' => $payment->receipt_snapshot['penalty_balance'] ?? null,
+            'id' => $payment->id, 'loan_reference' => $payment->receipt_snapshot['loan_reference'] ?? $payment->loan?->reference_no,
+            'borrower' => $payment->receipt_snapshot['borrower'] ?? $payment->loan?->borrower?->full_name,
+            'received_by' => $payment->receipt_snapshot['received_by'] ?? $payment->user?->name, 'date' => $payment->paid_at?->toDateString(),
             'regular_amount' => $payment->amount, 'penalty_paid' => $payment->penalty_paid,
             'total_received' => number_format((float) $payment->amount + (float) $payment->penalty_paid, 2, '.', ''),
             'method' => $payment->method, 'reference_no' => $payment->reference_no,

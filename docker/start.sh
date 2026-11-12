@@ -8,6 +8,9 @@ sed -i "s/<VirtualHost \*:10000>/<VirtualHost *:$PORT>/" /etc/apache2/sites-avai
 php artisan config:cache
 php artisan migrate --force
 php artisan db:seed --class=DeploymentAdminSeeder --force
+if [ "${REPLACE_DEMO_PORTFOLIO:-}" = "calendar-demo-v1" ]; then
+    php artisan lendtrack:replace-demo --confirmed-test-data
+fi
 php artisan view:cache
 chown -R www-data:www-data storage bootstrap/cache
 exec apache2-foreground

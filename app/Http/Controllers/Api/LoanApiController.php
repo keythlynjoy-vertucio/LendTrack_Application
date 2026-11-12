@@ -75,8 +75,9 @@ class LoanApiController extends Controller
                 'min:0',
                 'max:999.99',
             ],
+            'interest_months' => ['required', 'integer', 'min:1', 'max:60'],
             'term_months' => [
-                'required',
+                'nullable',
                 'integer',
                 'min:1',
                 'max:600',
@@ -119,43 +120,17 @@ class LoanApiController extends Controller
             ]);
         }
 
-        // Same single-interest computation used by the website.
-        $totalPayable = round(
-            $principal + ($principal * ($interestRate / 100)),
-            2
+        $terms = (new \App\Services\CalendarLoanService())->terms(
+            $data['start_date'], $data['first_due_date'], $data['frequency'],
+            (int) $data['interest_months'], $principal, $interestRate
         );
-
-        if ($totalPayable > 9999999999.99) {
-            throw ValidationException::withMessages([
-                'principal_amount' => [
-                    'The calculated total payable exceeds the supported amount.',
-                ],
-            ]);
-        }
-
-        $metrics = new LoanMetricsService();
-
+        $data = array_merge($data, $terms);
         $data['principal_amount'] = $principal;
         $data['interest_rate'] = $interestRate;
-        $data['penalty_per_missed_due'] = round(
-            (float) $data['penalty_per_missed_due'],
-            2
-        );
-
-        // Despite its name, the service treats term_months
-        // as the number of installments.
-        $data['term_months'] = (int) $data['term_months'];
-
-        $data['total_payable'] = $totalPayable;
         $data['total_paid'] = 0;
         $data['status'] = 'active';
         $data['user_id'] = $request->user()->id;
-
-        $data['due_date'] = $metrics->calculateFinalDueDate(
-            $data['first_due_date'],
-            $data['frequency'],
-            $data['term_months']
-        );
+        $metrics = new LoanMetricsService();
 
         $loan = DB::transaction(function () use (
             $request,
@@ -212,6 +187,7 @@ class LoanApiController extends Controller
     {
         $loan->load(['borrower', 'payments']);
 
+        $loan->setAttribute('payment_quote', (new \App\Services\CalendarLoanService())->quote($loan, now('Asia/Manila')->toDateString()));
         return response()->json($loan);
     }
 

@@ -22,6 +22,7 @@ class Payment extends Model
     ];
 
     protected $casts = [
+        'receipt_snapshot' => 'array',
         'amount' => 'decimal:2',
         'penalty_paid' => 'decimal:2',
         'paid_at' => 'date',

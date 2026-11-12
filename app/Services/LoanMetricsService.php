@@ -625,7 +625,8 @@ class LoanMetricsService
         }
 
         $paymentTotals = $this->getLoanPaymentTotals($loan);
-        if ($paymentTotals['regular'] >= round($this->loanTotalPayable($loan), 2)) {
+        $penalty = $loan->interest_months ? (new CalendarLoanService())->quote($loan, $today->toDateString())['penalty_outstanding'] : 0;
+        if ($paymentTotals['regular'] >= round($this->loanTotalPayable($loan), 2) && $penalty <= 0) {
             return 'paid';
         }
 
@@ -729,7 +730,7 @@ class LoanMetricsService
 
         $schedule = [];
         for ($index = 0; $index < $terms; $index++) {
-            $dueDate = $this->addFrequency($startDate, $index, $frequency);
+            $dueDate = $loan->schedule_dates ? Carbon::parse($loan->schedule_dates[$index]) : $this->addFrequency($startDate, $index, $frequency);
             $expected = $index === $terms - 1
                 ? round($totalPayable - $installment * ($terms - 1), 2)
                 : $installment;
