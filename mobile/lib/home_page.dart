@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'design/lend_design.dart';
@@ -30,14 +32,16 @@ class _HomePageState extends State<HomePage> {
   String? _error;
   bool _loading = false;
   bool _opening = false;
+  bool _refreshQueued = false;
   @override
   void initState() {
     super.initState();
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool afterChange = false}) async {
     if (_loading) {
+      _refreshQueued = _refreshQueued || afterChange;
       return;
     }
     setState(() {
@@ -58,6 +62,10 @@ class _HomePageState extends State<HomePage> {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+        if (_refreshQueued) {
+          _refreshQueued = false;
+          unawaited(_load());
+        }
       }
     }
   }
@@ -69,12 +77,10 @@ class _HomePageState extends State<HomePage> {
     setState(() => _opening = true);
     try {
       await Navigator.of(context).push<void>(LendRoute(builder: (_) => page));
-      if (mounted) {
-        await _load();
-      }
     } finally {
       if (mounted) {
         setState(() => _opening = false);
+        unawaited(_load(afterChange: true));
       }
     }
   }
@@ -105,13 +111,13 @@ class _HomePageState extends State<HomePage> {
       );
 
   Widget _overview() {
-    if (_loading) {
+    if (_loading && _dashboard == null) {
       return const SizedBox(
         height: 170,
         child: AppLoading(label: 'Refreshing overview…'),
       );
     }
-    if (_error != null) {
+    if (_error != null && _dashboard == null) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -137,6 +143,16 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_loading) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: 6),
+            const Text('Refreshing overview…'),
+            const SizedBox(height: 8),
+          ],
+          if (_error != null) ...[
+            const Text('Showing last loaded overview. Refresh failed.'),
+            TextButton(onPressed: _load, child: const Text('Retry')),
+          ],
           MetricCard(
             label: 'Outstanding balance',
             value: formatMoney(p['outstanding_balance']),

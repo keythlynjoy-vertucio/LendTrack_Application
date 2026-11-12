@@ -7,10 +7,12 @@ import 'session.dart';
 /// Retry only the read-only health check. Never replay login or payment POSTs.
 Future<void> waitForServer({
   http.Client? client,
+  void Function(String message)? onStatus,
   Duration budget = const Duration(minutes: 3),
   Duration attemptTimeout = const Duration(seconds: 20),
   Duration retryDelay = const Duration(seconds: 2),
 }) async {
+  onStatus?.call('Connecting to server…');
   final owned = client == null;
   final transport = client ?? http.Client();
   final clock = Stopwatch()..start();
@@ -35,6 +37,7 @@ Future<void> waitForServer({
       } on http.ClientException {
         // Retry transient connection failures within the same bounded budget.
       }
+      onStatus?.call('Waiting for server…');
       final remaining = budget - clock.elapsed;
       if (remaining > Duration.zero) {
         await Future<void>.delayed(

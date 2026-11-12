@@ -265,4 +265,62 @@ class MobileCompletionTest extends \Illuminate\Foundation\Testing\TestCase
         $this->assertNotEmpty($receipt->json('borrower'));
         $this->assertEquals('paid', $loan->fresh()->status);
     }
+
+    public function test_collection_totals_use_one_query_and_exclude_archived_payments(): void
+    {
+        $user = $this->signIn();
+        $loan = $this->loan($user);
+        $loan->payments()->create(['user_id' => $user->id, 'amount' => 250, 'penalty_paid' => 50,
+            'paid_at' => today(), 'method' => 'cash']);
+        $archived = $loan->payments()->create(['user_id' => $user->id, 'amount' => 10, 'penalty_paid' => 5,
+            'paid_at' => today(), 'method' => 'cash']);
+        $archived->delete();
+        $metrics = new LoanMetricsService();
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        \Illuminate\Support\Facades\DB::flushQueryLog();
+        $totals = $metrics->getCollectionsTotals(today(), today());
+        $queries = \Illuminate\Support\Facades\DB::getQueryLog();
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $this->assertCount(1, $queries);
+        $this->assertEquals(['regular' => 250, 'penalty' => 50, 'total' => 300], $totals);
+    }
+
+    public function test_loaded_payment_quote_uses_no_extra_queries_and_counts_late_installments(): void
+    {
+        $user = $this->signIn();
+        $loan = $this->loan($user);
+        $loan->update(['interest_months' => 1, 'schedule_dates' => ['2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29'],
+            'total_payable' => 1000, 'penalty_per_missed_due' => 50]);
+        foreach ([['2026-10-08', 250, 0], ['2026-10-23', 250, 20], ['2026-11-15', 500, 0]] as [$date, $amount, $penalty]) {
+            $loan->payments()->create(['user_id' => $user->id, 'amount' => $amount, 'penalty_paid' => $penalty,
+                'paid_at' => $date, 'method' => 'cash']);
+        }
+        $loan->load('payments');
+        $metrics = new LoanMetricsService();
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        \Illuminate\Support\Facades\DB::flushQueryLog();
+        $quote = (new \App\Services\CalendarLoanService())->quote($loan, '2026-10-30', $metrics);
+        $queries = \Illuminate\Support\Facades\DB::getQueryLog();
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $this->assertCount(0, $queries);
+        $this->assertEquals(3, $quote['missed_installments']);
+        $this->assertEquals(130, $quote['penalty_outstanding']);
+        $this->assertEquals(500, $quote['regular_outstanding']);
+        $this->assertEquals(250, $quote['suggested_regular']);
+    }
+
+    public function test_admin_and_staff_can_log_in_with_real_tokens(): void
+    {
+        foreach (['admin', 'staff'] as $role) {
+            $user = User::create(['name' => 'Login test', 'email' => $role.'@example.test',
+                'password' => 'test-login-password', 'role' => $role]);
+            $login = $this->postJson('/api/login', ['email' => $user->email, 'password' => 'test-login-password',
+                'device_name' => 'Automated test']);
+            $login->assertOk()->assertJsonPath('user.role', $role);
+            $this->assertNotEmpty($login->json('token'));
+            $this->assertDatabaseHas('personal_access_tokens', ['tokenable_id' => $user->id]);
+        }
+        $this->postJson('/api/login', ['email' => 'staff@example.test', 'password' => 'incorrect',
+            'device_name' => 'Automated test'])->assertUnprocessable();
+    }
 }

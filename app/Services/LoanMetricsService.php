@@ -51,15 +51,12 @@ class LoanMetricsService
             $query->whereDate('paid_at', '<=', $to);
         }
 
-        $regular = (float) (clone $query)
-            ->selectRaw('COALESCE(SUM(amount), 0) as total')
-            ->value('total');
-
-        $penalty = $this->hasPenaltyColumn
-            ? (float) (clone $query)
-                ->selectRaw('COALESCE(SUM(COALESCE(penalty_paid, 0)), 0) as total')
-                ->value('total')
-            : 0.0;
+        $row = $query->selectRaw('COALESCE(SUM(amount), 0) as regular_total')
+            ->selectRaw($this->hasPenaltyColumn
+                ? 'COALESCE(SUM(penalty_paid), 0) as penalty_total'
+                : '0 as penalty_total')->first();
+        $regular = (float) $row->regular_total;
+        $penalty = (float) $row->penalty_total;
 
         return [
             'regular' => $regular,
@@ -91,7 +88,7 @@ class LoanMetricsService
         $summary['penalty_payments'] = $collections['penalty'];
         $summary['total_collections'] = $collections['total'];
 
-        $loans = Loan::with(['borrower', 'payments'])
+        $loans = Loan::with('payments')
             ->whereRaw('LOWER(TRIM(status)) NOT IN (?, ?, ?, ?)', ['pending', 'cancelled', 'closed', 'written_off'])
             ->whereHas('borrower', fn ($query) => $query->whereNull('deleted_at'))
             ->get();
@@ -625,7 +622,7 @@ class LoanMetricsService
         }
 
         $paymentTotals = $this->getLoanPaymentTotals($loan);
-        $penalty = $loan->interest_months ? (new CalendarLoanService())->quote($loan, $today->toDateString())['penalty_outstanding'] : 0;
+        $penalty = $loan->interest_months ? (new CalendarLoanService())->quote($loan, $today->toDateString(), $this)['penalty_outstanding'] : 0;
         if ($paymentTotals['regular'] >= round($this->loanTotalPayable($loan), 2) && $penalty <= 0) {
             return 'paid';
         }

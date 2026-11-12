@@ -9,13 +9,19 @@ import 'package:lendtrack_mobile/services/server_ready.dart';
 void main() {
   test('Retries a sleeping health endpoint using GET only', () async {
     var calls = 0;
+    final messages = <String>[];
     final client = MockClient((request) async {
       expect(request.method, 'GET');
       expect(request.url.path, '/up');
       calls++;
       return http.Response('', calls == 1 ? 503 : 200);
     });
-    await waitForServer(client: client, retryDelay: Duration.zero);
+    await waitForServer(
+      client: client,
+      retryDelay: Duration.zero,
+      onStatus: messages.add,
+    );
+    expect(messages, contains('Waiting for server…'));
     expect(calls, 2);
     client.close();
   });

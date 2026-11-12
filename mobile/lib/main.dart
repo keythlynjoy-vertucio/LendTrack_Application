@@ -53,6 +53,13 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _error;
   String? _restoreError;
+  String _connectionStatus = 'Connecting to server…';
+
+  void _showConnectionStatus(String message) {
+    if (mounted) {
+      setState(() => _connectionStatus = message);
+    }
+  }
 
   @override
   void initState() {
@@ -94,10 +101,11 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      await waitForServer();
+      await waitForServer(onStatus: _showConnectionStatus);
       if (!mounted) {
         return;
       }
+      _showConnectionStatus('Checking saved sign-in…');
       final response = await http
           .get(
             Uri.parse('$baseUrl/me'),
@@ -213,10 +221,11 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await waitForServer();
+      await waitForServer(onStatus: _showConnectionStatus);
       if (!mounted) {
         return;
       }
+      _showConnectionStatus('Signing in…');
       final response = await http
           .post(
             Uri.parse('$baseUrl/login'),
@@ -273,7 +282,10 @@ class _LoginPageState extends State<LoginPage> {
       });
     } on TimeoutException {
       if (mounted) {
-        setState(() => _error = 'Connection timed out. Check Laravel.');
+        setState(
+          () => _error =
+              'Server response timed out. Check your connection and try again.',
+        );
       }
     } on http.ClientException {
       if (mounted) {
@@ -365,12 +377,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _sessionStatus() {
     if (_restoring) {
-      return const SizedBox(
-        height: 160,
-        child: AppLoading(
-          label: 'Connecting to the server… A sleeping server may take up to 3 minutes.',
-        ),
-      );
+      return SizedBox(height: 160, child: AppLoading(label: _connectionStatus));
     }
 
     return Column(
@@ -465,11 +472,9 @@ class _LoginPageState extends State<LoginPage> {
                 value == null || value.isEmpty ? 'Enter your password.' : null,
           ),
           if (_busy)
-            const Padding(
-              padding: EdgeInsets.only(top: 16),
-              child: Text(
-                'Connecting securely… The server may be waking up. Please keep this screen open (up to 3 minutes).',
-              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Text(_connectionStatus),
             ),
           _errorText(),
           const SizedBox(height: 24),

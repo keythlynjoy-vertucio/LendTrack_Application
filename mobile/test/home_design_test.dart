@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -89,6 +90,63 @@ void main() {
         () => MockClient(
           (_) async => http.Response('{"message":"Unavailable"}', 503),
         ),
+      );
+    },
+  );
+
+  testWidgets(
+    'Refresh keeps balances and navigation available; failure retains the last overview',
+    (tester) async {
+      var requests = 0;
+      final refresh = Completer<http.Response>();
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: lendTheme(),
+              home: HomePage(
+                user: const {'id': 1, 'name': 'Test', 'role': 'staff'},
+                busy: false,
+                onLogout: () {},
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('₱1,030.00'), findsOneWidget);
+          await tester.tap(find.byTooltip('Refresh overview'));
+          await tester.pump();
+          expect(find.text('₱1,030.00'), findsOneWidget);
+          expect(find.text('Refreshing overview…'), findsOneWidget);
+          for (final tile in tester.widgetList<ListTile>(
+            find.byType(ListTile),
+          )) {
+            expect(tile.enabled, isTrue);
+          }
+          refresh.complete(http.Response('{"message":"Unavailable"}', 503));
+          await tester.pumpAndSettle();
+          expect(find.text('₱1,030.00'), findsOneWidget);
+          expect(
+            find.text('Showing last loaded overview. Refresh failed.'),
+            findsOneWidget,
+          );
+          expect(find.text('Retry'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+        () => MockClient((request) async {
+          requests++;
+          if (requests > 1) return refresh.future;
+          return http.Response(
+            jsonEncode({
+              'as_of': '2026-11-13',
+              'portfolio': {
+                'outstanding_balance': 1030,
+                'due_today': 250,
+                'overdue_amount': 0,
+              },
+            }),
+            200,
+          );
+        }),
       );
     },
   );

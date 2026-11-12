@@ -41,17 +41,28 @@ class CalendarLoanService
             'term_months' => count($dates), 'due_date' => $end->toDateString(), 'total_payable' => $total];
     }
 
-    public function quote(Loan $loan, string $date): array
+    public function quote(Loan $loan, string $date, ?LoanMetricsService $metrics = null): array
     {
-        $metrics = new LoanMetricsService();
+        $metrics ??= new LoanMetricsService();
         $asOf = Carbon::parse($date)->startOfDay();
+        $loan->loadMissing('payments');
         $schedule = $metrics->collectionSchedule($loan, $asOf);
-        $payments = $loan->payments()->whereDate('paid_at', '<=', $date)->orderBy('paid_at')->orderBy('id')->get();
+        $payments = $loan->payments
+            ->filter(fn ($payment) => $payment->paid_at && $payment->paid_at->toDateString() <= $date)
+            ->sortBy([['paid_at', 'asc'], ['id', 'asc']])->values();
+        $paymentIndex = 0;
+        $onTimeCents = 0;
         $expectedCents = 0; $missed = 0; $suggestion = 0; $due = null;
         foreach ($schedule as $row) {
             $expectedCents += (int) round($row['expected'] * 100);
             if ($row['due_date'] < $date) {
-                $onTimeCents = (int) round($payments->filter(fn ($p) => $p->paid_at->toDateString() <= $row['due_date'])->sum('amount') * 100);
+                // Sorted due dates and payments permit one pass instead of
+                // filtering every payment again for every installment.
+                while ($paymentIndex < $payments->count()
+                    && $payments[$paymentIndex]->paid_at->toDateString() <= $row['due_date']) {
+                    $onTimeCents += (int) round((float) $payments[$paymentIndex]->amount * 100);
+                    $paymentIndex++;
+                }
                 if ($onTimeCents < $expectedCents) { $missed++; }
             }
             if ($suggestion === 0 && $row['balance'] > 0) {
