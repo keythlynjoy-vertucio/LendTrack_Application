@@ -28,7 +28,11 @@ jobs:
       - run: find app bootstrap config database routes tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: vendor/bin/phpunit -c phpunit.mobile.xml
       - name: Verify fresh PostgreSQL migrations
-        run: php artisan migrate --force
+        run: |
+          php artisan migrate --force
+          php artisan db:seed --class=DeploymentAdminSeeder --force
+          php artisan lendtrack:replace-demo --confirmed-test-data
+          php artisan lendtrack:replace-demo --confirmed-test-data
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -38,5 +42,7 @@ jobs:
           DB_DATABASE: lendtrack_test
           DB_USERNAME: lendtrack
           DB_PASSWORD: ci-only-password
+          DEPLOY_ADMIN_EMAIL: ci-admin@example.test
+          DEPLOY_ADMIN_PASSWORD: ci-only-long-password
       - name: Build deployment image
         run: docker build -t lendtrack-backend .

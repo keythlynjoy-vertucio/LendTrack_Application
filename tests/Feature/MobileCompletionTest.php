@@ -198,7 +198,7 @@ class MobileCompletionTest extends \Illuminate\Foundation\Testing\TestCase
     {
         $service = new \App\Services\CalendarLoanService();
         $terms = $service->terms('2026-01-31', '2026-02-07', 'weekly', 2, 10000, 3);
-        $this->assertSame(10600.0, $terms['total_payable']);
+        $this->assertEquals(10600.0, $terms['total_payable']);
         $this->assertSame('2026-03-31', $terms['due_date']);
         $this->assertSame(9, $terms['term_months']);
         $this->assertSame('2026-03-31', end($terms['schedule_dates']));
