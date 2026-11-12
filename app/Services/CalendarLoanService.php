@@ -20,7 +20,9 @@ class CalendarLoanService
                 'daily' => $anchor->copy()->addDays($i),
                 'weekly' => $anchor->copy()->addWeeks($i),
                 'semi-monthly' => $anchor->copy()->addDays($i * 15),
-                'monthly' => $anchor->copy()->addMonthsNoOverflow($i),
+                'monthly' => $anchor->day === $anchor->daysInMonth
+                    ? $anchor->copy()->addMonthsNoOverflow($i)->endOfMonth()->startOfDay()
+                    : $anchor->copy()->addMonthsNoOverflow($i),
                 default => throw ValidationException::withMessages(['frequency' => 'Invalid frequency.']),
             };
             if ($date->gte($end)) { break; }

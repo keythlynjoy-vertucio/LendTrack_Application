@@ -200,6 +200,8 @@ class MobileCompletionTest extends \Illuminate\Foundation\Testing\TestCase
         $terms = $service->terms('2026-01-31', '2026-02-07', 'weekly', 2, 10000, 3);
         $this->assertEquals(10600.0, $terms['total_payable']);
         $this->assertSame('2026-03-31', $terms['due_date']);
+        $monthly = $service->terms('2026-01-31', '2026-02-28', 'monthly', 2, 10000, 3);
+        $this->assertSame(['2026-02-28', '2026-03-31'], $monthly['schedule_dates']);
         $this->assertSame(9, $terms['term_months']);
         $this->assertSame('2026-03-31', end($terms['schedule_dates']));
     }

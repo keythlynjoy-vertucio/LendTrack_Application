@@ -49,7 +49,10 @@ class ReplaceDemoPortfolio extends Command {
                     'semi-monthly' => $start->copy()->addDays(15), default => $start->copy()->addMonthNoOverflow(),
                 };
                 $borrower = Borrower::create(['first_name' => 'DEMO', 'last_name' => $label,
-                    'email' => 'demo'.($i+1).'@example.test', 'address' => 'Demonstration address, Philippines',
+                    'email' => 'demo'.($i+1).'@example.test', 'address' => 'DEMO House, Balingayan, City of Calapan, Oriental Mindoro',
+                    'province_code' => '1705200000', 'province_name' => 'Oriental Mindoro',
+                    'city_municipality_code' => '1705205000', 'city_municipality_name' => 'City of Calapan',
+                    'barangay_code' => '1705205001', 'barangay_name' => 'Balingayan', 'street_house' => 'DEMO House',
                     'status' => $i === 7 ? 'inactive' : 'active', 'notes' => 'SYNTHETIC DEMO RECORD - not a real borrower.']);
                 $terms = $service->terms($start->toDateString(), $first->toDateString(), $frequency, $months, 10000, 3);
                 $loan = Loan::create(array_merge($terms, ['borrower_id' => $borrower->id, 'user_id' => $admin->id,
