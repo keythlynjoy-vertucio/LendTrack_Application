@@ -1,6 +1,13 @@
-# LendTrack backend
+# LendTrack
 
-Laravel 12 API and website for LendTrack Mobile. Uploaded from the user's November 11, 2026 source archive. This repository does not include the Flutter app or existing database records.
+Laravel 12 backend and Flutter Android app for LendTrack. The backend remains at the repository root for the existing Render deployment. The mobile app is in [`mobile/`](mobile/README.md). Database records and credentials are not included.
+
+## Repository layout
+
+- Root: Laravel API, migrations, tests, Dockerfile, and Render startup configuration.
+- `mobile/`: Flutter source, Android project, font assets, dependency lockfile, and tests.
+
+Open `mobile/` in Android Studio to work on the phone app. Render continues to build the root Dockerfile; mobile files are excluded from the Docker image.
 
 ## Render setup
 

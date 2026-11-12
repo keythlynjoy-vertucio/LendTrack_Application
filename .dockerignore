@@ -17,3 +17,6 @@
 !phpunit.mobile.xml
 .git
 .github
+
+# Flutter is built separately; do not copy it into the Laravel image.
+/mobile/
