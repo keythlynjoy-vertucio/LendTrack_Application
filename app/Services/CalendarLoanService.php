@@ -45,9 +45,12 @@ class CalendarLoanService
     {
         $metrics ??= new LoanMetricsService();
         $asOf = Carbon::parse($date)->startOfDay();
-        $loan->loadMissing('payments');
-        $schedule = $metrics->collectionSchedule($loan, $asOf);
-        $payments = $loan->payments
+        // Keep an initially unloaded caller fresh across separate quotes.
+        // Explicitly preloaded relations are reusable within the request.
+        $workingLoan = clone $loan;
+        $workingLoan->loadMissing('payments');
+        $schedule = $metrics->collectionSchedule($workingLoan, $asOf);
+        $payments = $workingLoan->payments
             ->filter(fn ($payment) => $payment->paid_at && $payment->paid_at->toDateString() <= $date)
             ->sortBy([['paid_at', 'asc'], ['id', 'asc']])->values();
         $paymentIndex = 0;

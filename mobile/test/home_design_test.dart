@@ -150,4 +150,65 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'Returning from Loans unlocks menus before the overview request finishes',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(900, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var dashboardCalls = 0;
+      final refresh = Completer<http.Response>();
+      final data = jsonEncode({
+        'as_of': '2026-11-13',
+        'portfolio': {
+          'outstanding_balance': 1030,
+          'due_today': 250,
+          'overdue_amount': 0,
+        },
+      });
+      await http.runWithClient(
+        () async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: lendTheme(),
+              home: HomePage(
+                user: const {'id': 1, 'name': 'Test', 'role': 'staff'},
+                busy: false,
+                onLogout: () {},
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.widgetWithText(ListTile, 'Loans'));
+          await tester.pumpAndSettle();
+          await tester.pageBack();
+          await tester.pump();
+          await tester.pump(const Duration(seconds: 1));
+          expect(dashboardCalls, 2);
+          expect(find.text('₱1,030.00'), findsOneWidget);
+          expect(
+            tester
+                .widget<ListTile>(find.widgetWithText(ListTile, 'Borrowers'))
+                .enabled,
+            isTrue,
+          );
+          refresh.complete(http.Response(data, 200));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        },
+        () => MockClient((request) async {
+          if (request.url.path.endsWith('/dashboard')) {
+            dashboardCalls++;
+            return dashboardCalls == 1
+                ? http.Response(data, 200)
+                : refresh.future;
+          }
+          return http.Response(
+            '{"data":[],"current_page":1,"last_page":1,"total":0}',
+            200,
+          );
+        }),
+      );
+    },
+  );
 }
